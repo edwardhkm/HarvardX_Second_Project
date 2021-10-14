@@ -1,0 +1,336 @@
+---
+title: |
+    <Center>HarvardX: PH125.9x Data Science: Second Capstone Project</Center>
+    <Center>Predicting Age Group of Internet application</Center>
+author: "Edward Ho"
+date: "15 Oct 2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+This is a second project of PH125.9x Data Science: Capstone course.  We are encourage to take what we learnt from the course to the next level and solidify our knowledge with real life situation.  This project does not provide us with any cleaned data set like the first project.  We are free to select any data set publicly available for this project.  [Kaggle](https://www.kaggle.com "Kaggle Homepage") is a very popular Internet site for data scientists and machine learning professionals.  In this project, we select one of the data set available in Kaggle to train our algorithm.  
+
+## Overview
+[Trell](https://trell.co "Trell vlog Homepage") is India’s largest lifestyle videos and shopping app where you can discover latest fashion trends, makeup tutorials, fitness routines and etc.  This application is very similar to another famous Chinese app named TikTok.
+
+[Trell](https://trell.co "Trell vlog Homepage") has over 10 million downloads in Google play store.  Predicting age group of users will help to identify appropriate content delivery to users.
+
+We are trying to use machine learning method to predict the age group of users of the application.
+
+## Data wrangling
+The data set is provided in this [Kaggle website](https://www.kaggle.com/adityak80/trell-social-media-usage-data "Data set").  
+
+https://www.kaggle.com/adityak80/trell-social-media-usage-data
+
+We will download and identify any missing data in our data set.  After an inspection of the training set and test set provided in the Kaggle web site.  One major problem in the test set given in the website is that the outcome column "age_group" is missing.  We have to use the training set as our major source data.  The original training data set will split into two.  A training set and a test set.  
+
+One common problem amount public data set is that data collection process may be not complete.  Some missing value or NA will be introduced into data set.  We need to make sure that it is not happening to our data set and make sure it is clean and well define.
+
+```{r get-data, warning=FALSE, message=FALSE, results='hide'}
+##########################################################
+# Create train and test set (final hold-out test set)
+##########################################################
+
+# Note: this process could take a couple of minutes
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(ggplot2)) install.packages("ggplot2", repos = "http://cran.us.r-project.org")
+if(!require(lubridate)) install.packages("lubridate", repos = "http://cran.us.r-project.org")
+if(!require(corrr)) install.packages("corrr", repos = "http://cran.us.r-project.org")
+if(!require(ggcorrplot)) install.packages("ggcorrplot", repos = "http://cran.us.r-project.org")
+if(!require(xgboost)) install.packages("xgboost", repos = "http://cran.us.r-project.org")
+if(!require(reshape2)) install.packages("reshape2", repos = "http://cran.us.r-project.org")
+if(!require(dplyr)) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+if(!require(gridExtra)) install.packages("dplyr", repos = "http://cran.us.r-project.org")
+if(!require(randomForest)) install.packages("randomForest", repos = "http://cran.us.r-project.org")
+if(!require(e1071)) install.packages("e1071", repos = "http://cran.us.r-project.org")
+
+# Loading
+library(tidyverse)
+library(caret)
+library(data.table)
+library(ggplot2)
+library(lubridate)
+library(corrr)
+library(ggcorrplot)
+library(xgboost)
+library(reshape2)
+library(dplyr)
+library(gridExtra)
+library(randomForest)
+library(e1071)
+
+dl <- tempfile()
+
+## Read csv file
+download.file("https://dphi.s3.ap-south-1.amazonaws.com/dataset/train_age_dataset.csv", dl)
+
+## Store data into variable
+my_data_org <- read.csv(dl, stringsAsFactors=FALSE)
+glimpse(my_data_org)
+
+# Remove temp file as placeholder for the zip file
+rm(dl)
+
+```
+We exam the structure and data type of our data set.  Information such as NA, data type, number of columns, row names, features and outcome have to be identify before we move one to visualization and algorithm process. 
+
+``` {r data-wrangling}
+
+# Test NA of data
+anyNA(my_data_org)
+
+# Display general structure of our data
+str(my_data_org)
+
+# Show basic stat of our data
+summary(my_data_org)
+
+# Ensure no duplicated userId
+n_occur <- data.frame(table(my_data_org$userId))
+n_occur[n_occur$Freq > 1,]
+
+```
+There are no duplicated record in our data set and it is free from NA.  We can move on to the next step.
+
+## Data visualization
+In the summary of our data set, we see that features in our data set are either Integer or Numeric. The variance of some features is very large.  The features "tier" and "gender" should convert to categorical type, and the outcome should also be categorical, too.  
+
+Some of our features have a very similar named.  Features such as "slot1_trails_watched_per_day", "slot2_trails_watched_per_day".  Features as such may be highly correlated to each other.
+
+The correlation graph shows their correlation.
+```{r correlation-graph }
+mydata.cor = round(cor(my_data_org), 3)
+
+# Remove Username and user ID from the data set.  They are not useful in our graph.
+remove_cols <- c('Unnamed..0','userId')
+trimmed_my_data.cor <- mydata.cor[, !(colnames(my_data_org)%in%remove_cols), drop=FALSE]
+ggcorrplot(trimmed_my_data.cor )
+
+```
+
+We pick those columns that are highly correlated and plot their histograms.  The variances of features tell us that the small value in graphs will be hard to detect.  So we use logarithms to help us to express large numbers.
+
+```{r data-visualization, warning=FALSE, message=FALSE, results='hide'}
+
+p1 <- qplot(log(my_data_org$weekends_trails_watched_per_day), bins = 30)
+p2 <- qplot(log(my_data_org$weekdays_trails_watched_per_day), bins = 30)
+p3 <- qplot(log(my_data_org$slot4_trails_watched_per_day), bins = 30)
+p4 <- qplot(log(my_data_org$slot3_trails_watched_per_day), bins = 30)
+p5 <- qplot(log(my_data_org$slot2_trails_watched_per_day), bins = 30)
+p6 <- qplot(log(my_data_org$slot1_trails_watched_per_day), bins = 30)
+
+grid.arrange(p1, p2, p3, p4, p5, p6, ncol=2)
+
+```
+\newpage
+
+
+# Data Modeling
+
+The outcome of our data set is age_group.  It contains 1, 2, 3 and 4.  Each of this value represents an age group of the mobile app user.  Without doubt, this is a classification problem.  The original data type of age_group provided in the data set is an Integer.  We convert it to factor in the above section.   We will try to use Random Forest, KNN and XGBoost algorithm on this data set.
+
+## Random Forest model
+
+The training set contains over 400k entries.  RF algorithm requires powerful CPU to generate results within reasonable time.  Random Forest model also provides different arguments for us to fine tune the execution in order to search for best result.   This requires powerful CPU to run with a size of training set like this.  A sample of 10,000 entries from the training set will be used to run the algorithm.
+
+```{r random-forest-model-1, warning=FALSE, message=FALSE}
+
+# Test with smaller set 10,000 obs
+set.seed(1, sample.kind="Rounding")
+
+index <- sample(1:nrow(my_data_org), 10000, replace = FALSE)
+my_data_shortlist <- my_data_org[index,]
+
+# Remove userId and username
+remove_cols <- c('Unnamed..0','userId')
+
+# define column number of outcome
+n_col <- 25
+
+# make a copy of our sample data
+my_data <- my_data_shortlist[, !(colnames(my_data_shortlist)%in%remove_cols), drop=FALSE]
+
+# verify data set
+# head(my_data)
+
+# Change target variables and outcome into factor
+my_data$tier <- as.factor(my_data$tier)
+my_data$gender <- as.factor(my_data$gender)
+my_data$age_group <- as.factor(my_data$age_group)
+
+# Define test set and training set
+test_index <- createDataPartition(y = my_data$age_group, times = 1, p = 0.1, list = FALSE)
+train_set <- my_data[-test_index, ]
+test_set <- my_data[test_index, ]
+
+# Define predictors and response variables in the training set
+train_x <- train_set[, -n_col]
+train_y <- train_set[,n_col]
+
+# Define predictors and response variables in the test set
+test_x <- test_set[, -n_col]
+test_y <- test_set[, n_col]
+
+```
+
+Random forest model allows us to fine tune the model for best result.  We will try to find the best mtry value.  mtry represents number of variables randomly sampled as candidates at each split.
+
+```{r random-forest-model-2}
+control <- trainControl(method="cv", number=5, search ="grid")
+grid <- data.frame(mtry=c(1,10,50,100,500))
+
+# Run the model
+train_rf <- train(age_group ~ ., 
+                  data = train_set, 
+                  method="rf",
+                  trControl=control,
+                  tuneGrid = grid,
+                  metric = "Accuracy",
+                  importance = TRUE)
+
+# Print the results
+print(train_rf)
+
+ggplot(train_rf)
+best_mtry <- train_rf$bestTune 
+print(best_mtry)
+
+```
+
+The best value of mtry is 50.  There are other parameters we can fine tune in RF model such as nTree, nodesize and maxnodes. 
+
+The nodesize  controls the size of terminals nodes during node splitting while training a tree. Nodes with fewer than nodesize objects are not split, and therefore become terminal nodes. 
+
+The maxnodes controls the maximum number of terminal nodes trees in the forest can have.   If not given, trees are grown to the maximum possible (subject to limits by nodesize).  
+
+```{r random-forest-model-3}
+
+fit_rf <- randomForest(train_x, train_y,
+                       minNode = train_rf$bestTune$mtry)
+plot(fit_rf)
+y_hat_rf <- predict(fit_rf, test_set)
+cm_rf <- confusionMatrix(y_hat_rf, test_y)
+print(cm_rf$overall["Accuracy"])
+
+```
+
+
+## KNN model
+
+KNN model is another computing power hunger model.  It will take extensive amount of time to execute with a size like 400k entries and over 20 features.  
+
+```{r knn-1}
+# define column number of outcome
+n_col <- 25
+
+# make a copy of our sample data
+my_data <- my_data_shortlist[, !(colnames(my_data_shortlist)%in%remove_cols), drop=FALSE]
+
+# The normalization function is created
+nor <-function(x) { (x -min(x))/(max(x)-min(x))   }
+
+# Normalized features for KNN
+select_features <- seq(1:(n_col-1))
+my_data_norm <- as.data.frame(lapply(my_data[, select_features], nor))
+
+# Generated new normalized data set.  Outcome is appended back.
+my_data_norm <- data.frame(my_data_norm, my_data$age_group)
+col_names <- colnames(my_data_norm[,select_features])
+colnames(my_data_norm) <- c(col_names, "age_group")
+
+my_data_norm$age_group <- as.factor(my_data_norm$age_group)
+str(my_data_norm)
+
+# Create normalized test set and training set using test_index generated in the 
+# above to ensure consistency of our training and test data set
+set.seed(1, sample.kind="Rounding")
+train_set <- my_data_norm[-test_index, ]
+test_set <- my_data_norm[test_index, ]
+
+# Define predictors and response variables in the training set
+train_x <- train_set[, -n_col]
+train_y <- train_set[,n_col]
+
+# Define predictors and response variables in the test set
+test_x <- test_set[, -n_col]
+test_y <- test_set[, n_col]
+
+tune_grid <- data.frame(k = seq(10, 100, 10))
+control <- trainControl(method = "cv", number = 10, p = .9)
+
+train_knn <- train(age_group ~ ., data = train_set,
+                   method = "knn",
+                   tuneGrid = tune_grid,
+                   trControl = control)
+
+plot(train_knn)
+best_tune_knn <- train_knn$bestTune
+
+y_hat_knn <- predict(train_knn, test_set, type = "raw")
+cm_knn <- confusionMatrix(y_hat_knn, test_y)$overall["Accuracy"]
+print(cm_knn)
+
+```
+
+## XGBoost model
+
+XBBoost is short for eXtreme Gradient Boosting package.  It is a very popular model in Kaggle and data science professional because it is fast, and it can utilized modern GPU power to speed up its execution.
+
+
+```{r xgboost-1}
+# Assign train and test data set, with the same test index for consistency
+train_set <- my_data[-test_index, ]
+test_set <- my_data[test_index, ]
+
+# Define predictors and response variables in the training set
+train_x <- data.matrix(train_set[, -n_col])
+train_y <- train_set[,n_col]
+
+# Define predictors and response variables in the test set
+test_x <- data.matrix(test_set[, -n_col])
+test_y <- test_set[, n_col]
+
+# Define final training and testing sets for XGboost
+set.seed(1, sample.kind="Rounding")
+xgb_train <- xgb.DMatrix(data = train_x, label = train_y)
+xgb_test <- xgb.DMatrix(data = test_x, label = test_y)
+
+#  Define watchlist
+watchlist <- list(train=xgb_train, test=xgb_test)
+
+# Tune number of rounds
+N_rounds <- seq(10, 5000, 250)
+preds6 <- sapply(N_rounds, function(n){
+  first_model <- xgb.train(data = xgb_train, max.depth = 6, watchlist=watchlist, nrounds = n, verbose = 0, lambda = 1)
+  pred_y <- predict(first_model, as.matrix(as.integer(test_y)))
+  pred_y_hat <- round(pred_y)
+
+  u <- union(pred_y_hat, test_y)
+  t <- table(factor(pred_y_hat, u), factor(test_y, u))
+  cm <- confusionMatrix(t)
+  cm_accuracy <- cm$overall["Accuracy"]
+  result <- c(6, n, cm_accuracy)
+})
+preds6 <- t(preds6)
+colnames(preds6) <- c('depths', 'rounds', 'Accuarcy')
+preds6
+
+```
+
+# Conclusion
+
+All three models provided accuracy approximately 0.6 and 0.7.  XGboost is the fastest among these three algorithms.  All these three algorithms allow us to fine tune the model with various parameters.   We can refine our results with their tuned parameters to achieve a higher accuracy than current level of 0.6 and 0.7.
+
+```{r summary, echo=FALSE}
+model <- c("Random Forest", "KNN", "XGBoost")
+accuracy <-c(0.6849452, 0.6370887, 0.6251246)
+df <- data.frame(model, accuracy)
+df
+```
