@@ -67,6 +67,61 @@ n_col <- 25
 remove_cols <- c('Unnamed..0','userId')
 my_data <- my_data_shortlist[, !(colnames(my_data_shortlist)%in%remove_cols), drop=FALSE]
 
+
+############################################################################
+# Data set 2 for nearZeroVar
+############################################################################
+library(matrixStats)
+sds <- colSds(as.matrix(my_data))
+qplot(sds)
+hist(sds)
+str(sds)
+View(sds)
+
+nzv <- nearZeroVar(my_data)
+col_index <- setdiff(1:ncol(my_data), nzv)
+ncol_nzv <- length(col_index)
+
+my_data_nzv <- my_data
+
+# Change target variable to factor type
+my_data_nzv$age_group <- as.factor(my_data_nzv$age_group)
+my_data_nzv$tier <- as.factor(my_data_nzv$tier)
+my_data_nzv$gender <- as.factor(my_data_nzv$gender)
+
+my_data_nzv <- my_data_nzv[ ,col_index]
+
+# We take 90% training set and 10% test set
+test_index_nzv <- createDataPartition(y = my_data_nzv$age_group, times = 1, p = 0.1, list = FALSE)
+train_set_nzv <- my_data_nzv[-test_index_nzv, ]
+test_set_nzv <- my_data_nzv[test_index_nzv, ]
+
+# Define predictors and response variables in the training set
+train_x_nzv <- train_set_nzv[, -ncol_nzv]
+train_y_nzv <- train_set_nzv[,ncol_nzv]
+
+# Define predictors and response variables in the test set
+test_x_nzv <- test_set_nzv[, -ncol_nzv]
+test_y_nzv <- test_set_nzv[, ncol_nzv]
+
+# Setup parameters for KNN
+tune_grid <- data.frame(k = seq(10, 100, 10))
+control <- trainControl(method = "cv", number = 10, p = .9)
+
+train_knn_nzv <- train(age_group ~ ., data = train_set_nzv,
+                   method = "knn",
+                   tuneGrid = tune_grid,
+                   trControl = control)
+
+plot(train_knn_nzv)
+best_tune_knn_nzv <- train_knn_nzv$bestTune
+
+y_hat_knn_nzv <- predict(train_knn_nzv, test_set_nzv, type = "raw")
+
+cm_knn_nzv <- confusionMatrix(y_hat_knn_nzv, test_y_nzv)$overall["Accuracy"]
+print(cm_knn_nzv)
+
+
 ############################################################################
 # Data Visualization
 #
