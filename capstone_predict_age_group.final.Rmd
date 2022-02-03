@@ -3,7 +3,7 @@ title: |
     <Center>HarvardX: PH125.9x Data Science: Second Capstone Project</Center>
     <Center>Predicting Age Group of Internet application</Center>
 author: "Edward Ho"
-date: "15 Oct 2021"
+date: "3 Feb 2022"
 output: pdf_document
 ---
 
@@ -134,7 +134,7 @@ grid.arrange(p1, p2, p3, p4, p5, p6, ncol=2)
 
 # Data Modeling
 
-The outcome of our data set is age_group.  It contains 1, 2, 3 and 4.  Each of this value represents an age group of the mobile app user.  Without doubt, this is a classification problem.  The original data type of age_group provided in the data set is an Integer.  We convert it to factor in the above section.   We will try to use Random Forest, KNN and XGBoost algorithm on this data set.
+The outcome of our data set is age_group.  It contains 1, 2, 3 and 4.  Each of this value represents an age group of the mobile app user.  Without doubt, this is a classification problem.  The original data type of age_group provided in the data set is an Integer.  We converted it in to factor in the above section.   We will try to use Random Forest, KNN and XGBoost algorithm on this data set with basic fine turning of algorithm arguments.  
 
 ## Random Forest model
 
@@ -224,7 +224,9 @@ print(cm_rf$overall["Accuracy"])
 
 ## KNN model
 
-KNN model is another computing power hunger model.  It will take extensive amount of time to execute with a size like 400k entries and over 20 features.  
+KNN model is another computing power hunger model.  It will take extensive amount of time to execute with a size like 400k entries and over 20 features.
+
+In KNN model we will normalize the features due to the scale of these features is very different.  We use KNN model in this classification problem.  It measures the distances between pairs of app uses and these distances are influenced by the measure of features.  The big variance of scale as show in the data exploration section tell us that it is a prudent step to take.  
 
 ```{r knn-1}
 # define column number of outcome
@@ -281,7 +283,27 @@ print(cm_knn)
 
 ## XGBoost model
 
-XBBoost is short for eXtreme Gradient Boosting package.  It is a very popular model in Kaggle and data science professional because it is fast, and it can utilized modern GPU power to speed up its execution.
+XBBoost is short for eXtreme Gradient Boosting package.  It is a very popular model in Kaggle and data science professional because it is fast, and it tends to squeeze the juice from modern GPU to speed up its execution.
+
+It has multiple features that make it interesting and attractive to data profession.
+
+  * XGBoost has option to penalize complex models via L1 and L2
+  * It can handle different types of sparsity patterns in the data
+  * It has algorithm to handle weighted data
+  * It can make use of multiple core of CPU to run faster
+  * It handle cache memory faster
+  * It optimizes usage of HDD space to handle large dataset.
+
+Reader can find more information about XGBoost in the following two website,
+
+* https://xgboost.readthedocs.io/en/stable/tutorials/model.html
+* https://www.analyticsvidhya.com/blog/2018/09/an-end-to-end-guide-to-understand-the-math-behind-xgboost/
+
+Due to the limitation of my hardware and i5 CPU without graphic card.  Some basic arguments were tested before presented in this report. 
+
+The max depth option is used to control the depth of the tree. It will be over train the algorithm with depth of 6 and beyond.  
+
+Nrounds option is used to control the number of decision trees in the final model.  Apparently, the more decision trees we generated, a fine grained node we will achieve.  However, we have to aware of the over train problem we learnt during the course.  Therefore, a range of 10 to 5000 is selected just do demonstrate the usage of this algorithm. 
 
 
 ```{r xgboost-1}
@@ -298,6 +320,8 @@ test_x <- data.matrix(test_set[, -n_col])
 test_y <- test_set[, n_col]
 
 # Define final training and testing sets for XGboost
+# XGBoost package can use matrix dat.  so we'll use matrix command to conver training and
+# Test set into matrix.
 set.seed(1, sample.kind="Rounding")
 xgb_train <- xgb.DMatrix(data = train_x, label = train_y)
 xgb_test <- xgb.DMatrix(data = test_x, label = test_y)
@@ -326,7 +350,9 @@ preds6
 
 # Conclusion
 
-All three models provided accuracy approximately 0.6 and 0.7.  XGboost is the fastest among these three algorithms.  All these three algorithms allow us to fine tune the model with various parameters.   We can refine our results with their tuned parameters to achieve a higher accuracy than current level of 0.6 and 0.7.
+All three models provided accuracy approximately between 0.6 and 0.7.  XGboost is the fastest within these three algorithms.  KNN and RF took longer time complete.  Now, we can understand that why XGBoost is such a beloved algorithm in many Kaggle competitions.  The shortest execution time attribute of XGBoost prove itself for becoming a dominating algorithm in recent ML industry and data science profession.
+
+All these three algorithms allow us to fine tune the model with various parameters.   We can refine our results with their tuned parameters to achieve a higher accuracy than current level of 0.6 and 0.7.
 
 ```{r summary, echo=FALSE}
 model <- c("Random Forest", "KNN", "XGBoost")

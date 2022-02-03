@@ -261,6 +261,8 @@ test_x <- data.matrix(test_set[, -n_col])
 test_y <- test_set[, n_col]
 
 # Define final training and testing sets for XGboost
+# XGBoost package can use matrix dat.  so we'll use matrix command to conver training and
+# Test set into matrix.
 set.seed(1, sample.kind="Rounding")
 xgb_train <- xgb.DMatrix(data = train_x, label = train_y)
 xgb_test <- xgb.DMatrix(data = test_x, label = test_y)
